@@ -1,0 +1,43 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: osk-dev
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: osk-kraft
+spec:
+  authentication:
+    type: tls
+# ---
+# apiVersion: kafka.strimzi.io/v1beta2
+# kind: KafkaUser
+# metadata:
+#   name: osk-admin
+#   namespace: kafka
+#   labels:
+#     strimzi.io/cluster: osk-kraft
+# spec:
+#   # authentication:
+#   #   type: scram-sha-512
+#   #   sasl: true
+#   authorization:
+#     type: simple
+#     acls:
+#       - resource:
+#           type: topic
+#           name: "*"
+#           patternType: literal
+#         operations:
+#           - All
+#       # - resource:
+#       #     type: group
+#       #     name: "*"
+#       #     patternType: literal
+#         # operations:
+#         #   - All
+#       - resource:
+#           type: cluster
+#           # name: fourkites-osk
+#           # patternType: literal
+#         operations:
+#           - All
