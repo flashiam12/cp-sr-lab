@@ -8,6 +8,17 @@ metadata:
 spec:
   authentication:
     type: tls
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: osk-user
+  namespace: zookeeper
+  labels:
+    strimzi.io/cluster: osk-non-kraft
+spec:
+  authentication:
+    type: tls
 # ---
 # apiVersion: kafka.strimzi.io/v1beta2
 # kind: KafkaUser

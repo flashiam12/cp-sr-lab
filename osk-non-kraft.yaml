@@ -1,0 +1,111 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: osk-non-kraft
+  namespace: zookeeper
+spec:
+  kafka:
+    version: 3.5.1
+    replicas: 3
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+        configuration:
+          bootstrap:
+            alternativeNames:
+            - osk-non-kraft-kafka-bootstrap
+            - osk-non-kraft-kafka-brokers
+            - osk-non-kraft-broker-0
+            - osk-non-kraft-broker-1
+            - osk-non-kraft-broker-2
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      inter.broker.protocol.version: "3.5"
+    storage:
+      type: jbod
+      volumes:
+      - id: 0
+        type: persistent-claim
+        size: 100Gi
+        deleteClaim: false
+      - id: 1
+        type: persistent-claim
+        size: 100Gi
+        deleteClaim: false
+  zookeeper:
+    replicas: 3
+    storage:
+      type: persistent-claim
+      size: 100Gi
+      deleteClaim: false
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+# ---
+# apiVersion: kafka.strimzi.io/v1beta2
+# kind: Kafka
+# metadata:
+#   name: osk-non-kraft-sr-zookeeper
+#   namespace: zookeeper
+# spec:
+#   kafka:
+#     version: 3.5.1
+#     replicas: 3
+#     listeners:
+#       - name: plain
+#         port: 9092
+#         type: internal
+#         tls: false
+#       - name: tls
+#         port: 9093
+#         type: internal
+#         tls: true
+#         authentication:
+#           type: tls
+#         configuration:
+#           bootstrap:
+#             alternativeNames:
+#             - osk-non-kraft-sr-zookeeper-kafka-bootstrap
+#             - osk-non-kraft-sr-zookeeper-kafka-brokers
+#             - osk-non-kraft-sr-zookeeper-broker-0
+#             - osk-non-kraft-sr-zookeeper-broker-1
+#             - osk-non-kraft-sr-zookeeper-broker-2
+#     config:
+#       offsets.topic.replication.factor: 3
+#       transaction.state.log.replication.factor: 3
+#       transaction.state.log.min.isr: 2
+#       default.replication.factor: 3
+#       min.insync.replicas: 2
+#       inter.broker.protocol.version: "3.5"
+#     storage:
+#       type: jbod
+#       volumes:
+#       - id: 0
+#         type: persistent-claim
+#         size: 100Gi
+#         deleteClaim: false
+#       - id: 1
+#         type: persistent-claim
+#         size: 100Gi
+#         deleteClaim: false
+#   zookeeper:
+#     replicas: 3
+#     storage:
+#       type: persistent-claim
+#       size: 100Gi
+#       deleteClaim: false
+#   entityOperator:
+#     topicOperator: {}
+#     userOperator: {}

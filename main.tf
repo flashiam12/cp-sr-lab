@@ -82,6 +82,28 @@ resource "kubernetes_namespace" "kafka" {
   }
 }
 
+resource "kubernetes_namespace" "zookeeper" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    annotations = {
+      name = "strimizi-kafka"
+    }
+
+    name = "zookeeper"
+  }
+}
+
+resource "kubernetes_namespace" "srops" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    annotations = {
+      name = "strimizi-kafka"
+    }
+
+    name = "srops"
+  }
+}
+
 data "kubectl_file_documents" "strimzi-operator" {
     content = file("${path.module}/strimzi-operator.yaml")
 }
@@ -92,6 +114,32 @@ resource "kubectl_manifest" "strimzi-operator" {
   depends_on = [
     helm_release.confluent-operator,
     kubernetes_namespace.kafka
+  ]
+}
+
+data "kubectl_file_documents" "strimzi-operator-no-gates" {
+    content = file("${path.module}/strimzi-operator-no-feature-gate.yaml")
+}
+
+resource "kubectl_manifest" "strimzi-operator-no-gates" {
+  for_each  = data.kubectl_file_documents.strimzi-operator-no-gates.manifests
+  yaml_body = each.value
+  depends_on = [
+    helm_release.confluent-operator,
+    kubernetes_namespace.zookeeper
+  ]
+}
+
+data "kubectl_file_documents" "strimzi-operator-sr-ops" {
+    content = file("${path.module}/strimzi-operator-sr-ops.yaml")
+}
+
+resource "kubectl_manifest" "strimzi-operator-sr-ops" {
+  for_each  = data.kubectl_file_documents.strimzi-operator-sr-ops.manifests
+  yaml_body = each.value
+  depends_on = [
+    helm_release.confluent-operator,
+    kubernetes_namespace.srops
   ]
 }
 
@@ -107,6 +155,30 @@ resource "kubectl_manifest" "osk-kraft" {
   ]
 }
 
+data "kubectl_file_documents" "osk-non-kraft" {
+    content = file("${path.module}/osk-non-kraft.yaml")
+}
+
+resource "kubectl_manifest" "osk-non-kraft" {
+  for_each  = data.kubectl_file_documents.osk-non-kraft.manifests
+  yaml_body = each.value
+  depends_on = [
+    kubectl_manifest.strimzi-operator-no-gates
+  ]
+}
+
+data "kubectl_file_documents" "osk-non-kraft-sr-ops" {
+    content = file("${path.module}/osk-non-kraft-sr-ops.yaml")
+}
+
+resource "kubectl_manifest" "osk-non-kraft-sr-ops" {
+  for_each  = data.kubectl_file_documents.osk-non-kraft-sr-ops.manifests
+  yaml_body = each.value
+  depends_on = [
+    kubectl_manifest.strimzi-operator-sr-ops
+  ]
+}
+
 data "kubectl_file_documents" "osk-topic" {
     content = file("${path.module}/osk-topic.yaml")
 }
@@ -115,21 +187,21 @@ resource "kubectl_manifest" "osk-topic" {
   for_each  = data.kubectl_file_documents.osk-topic.manifests
   yaml_body = each.value
   depends_on = [
-    kubectl_manifest.osk-kraft
+    # kubectl_manifest.osk-kraft
   ]
 }
 
-data "kubectl_file_documents" "osk-user" {
-    content = file("${path.module}/osk-user.yaml")
-}
+# data "kubectl_file_documents" "osk-user" {
+#     content = file("${path.module}/osk-user.yaml")
+# }
 
-resource "kubectl_manifest" "osk-user" {
-  for_each  = data.kubectl_file_documents.osk-user.manifests
-  yaml_body = each.value
-  depends_on = [
-    kubectl_manifest.osk-kraft
-  ]
-}
+# resource "kubectl_manifest" "osk-user" {
+#   for_each  = data.kubectl_file_documents.osk-user.manifests
+#   yaml_body = each.value
+#   depends_on = [
+#     kubectl_manifest.osk-kraft
+#   ]
+# }
 
 data "kubectl_file_documents" "ubuntu-lab" {
     content = file("${path.module}/ubuntu-lab.yaml")
@@ -163,6 +235,18 @@ data "kubectl_file_documents" "cp-sr" {
 
 resource "kubectl_manifest" "cp-sr" {
   for_each  = data.kubectl_file_documents.cp-sr.manifests
+  yaml_body = each.value
+  depends_on = [
+    helm_release.confluent-operator
+  ]
+}
+
+data "kubectl_file_documents" "cp-sr-non-kraft" {
+    content = file("${path.module}/cp-sr-non-kraft.yaml")
+}
+
+resource "kubectl_manifest" "cp-sr-non-kraft" {
+  for_each  = data.kubectl_file_documents.cp-sr-non-kraft.manifests
   yaml_body = each.value
   depends_on = [
     helm_release.confluent-operator
