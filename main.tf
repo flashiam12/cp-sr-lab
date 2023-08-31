@@ -59,6 +59,16 @@ resource "helm_release" "confluent-operator" {
   ]
 }
 
+resource "helm_release" "ldap" {
+  name = "ldap"
+  chart = "${path.module}/dependencies/openldap"
+  namespace = "confluent"
+  cleanup_on_fail = true
+  create_namespace = false
+  values = [file("${path.module}/dependencies/openldap/ldaps-rbac.yaml")]
+  depends_on = [ helm_release.confluent-operator ]
+}
+
 data "kubectl_file_documents" "cfk-permissions" {
     content = file("${path.module}/dependencies/confluent-for-kubernetes/cfk-permission.yaml")
 }
@@ -143,17 +153,17 @@ resource "kubectl_manifest" "strimzi-operator-sr-ops" {
   ]
 }
 
-data "kubectl_file_documents" "osk-kraft" {
-    content = file("${path.module}/osk-kraft.yaml")
-}
+# data "kubectl_file_documents" "osk-kraft" {
+#     content = file("${path.module}/osk-kraft.yaml")
+# }
 
-resource "kubectl_manifest" "osk-kraft" {
-  for_each  = data.kubectl_file_documents.osk-kraft.manifests
-  yaml_body = each.value
-  depends_on = [
-    kubectl_manifest.strimzi-operator
-  ]
-}
+# resource "kubectl_manifest" "osk-kraft" {
+#   for_each  = data.kubectl_file_documents.osk-kraft.manifests
+#   yaml_body = each.value
+#   depends_on = [
+#     kubectl_manifest.strimzi-operator
+#   ]
+# }
 
 data "kubectl_file_documents" "osk-non-kraft" {
     content = file("${path.module}/osk-non-kraft.yaml")
@@ -167,17 +177,42 @@ resource "kubectl_manifest" "osk-non-kraft" {
   ]
 }
 
-data "kubectl_file_documents" "osk-non-kraft-sr-ops" {
-    content = file("${path.module}/osk-non-kraft-sr-ops.yaml")
+# data "kubectl_file_documents" "osk-non-kraft-sr-ops" {
+#     content = file("${path.module}/osk-non-kraft-sr-ops.yaml")
+# }
+
+# resource "kubectl_manifest" "osk-non-kraft-sr-ops" {
+#   for_each  = data.kubectl_file_documents.osk-non-kraft-sr-ops.manifests
+#   yaml_body = each.value
+#   depends_on = [
+#     kubectl_manifest.strimzi-operator-sr-ops
+#   ]
+# }
+
+data "kubectl_file_documents" "cp-server-ops-non-kraft" {
+    content = file("${path.module}/cp-server-ops-non-kraft.yaml")
 }
 
-resource "kubectl_manifest" "osk-non-kraft-sr-ops" {
-  for_each  = data.kubectl_file_documents.osk-non-kraft-sr-ops.manifests
+resource "kubectl_manifest" "cp-server-ops-non-kraft" {
+  for_each  = data.kubectl_file_documents.cp-server-ops-non-kraft.manifests
   yaml_body = each.value
   depends_on = [
-    kubectl_manifest.strimzi-operator-sr-ops
+    helm_release.confluent-operator
   ]
 }
+
+data "kubectl_file_documents" "cp-sr-cp-non-kraft" {
+    content = file("${path.module}/cp-sr-cp-non-kraft.yaml")
+}
+
+resource "kubectl_manifest" "cp-sr-cp-non-kraft" {
+  for_each  = data.kubectl_file_documents.cp-sr-cp-non-kraft.manifests
+  yaml_body = each.value
+  depends_on = [
+    kubectl_manifest.cp-server-ops-non-kraft
+  ]
+}
+
 
 data "kubectl_file_documents" "osk-topic" {
     content = file("${path.module}/osk-topic.yaml")
@@ -229,29 +264,29 @@ resource "kubectl_manifest" "ubuntu-tls-lab" {
   ]
 }
 
-data "kubectl_file_documents" "cp-sr" {
-    content = file("${path.module}/cp-sr.yaml")
-}
+# data "kubectl_file_documents" "cp-sr" {
+#     content = file("${path.module}/cp-sr.yaml")
+# }
 
-resource "kubectl_manifest" "cp-sr" {
-  for_each  = data.kubectl_file_documents.cp-sr.manifests
-  yaml_body = each.value
-  depends_on = [
-    helm_release.confluent-operator
-  ]
-}
+# resource "kubectl_manifest" "cp-sr" {
+#   for_each  = data.kubectl_file_documents.cp-sr.manifests
+#   yaml_body = each.value
+#   depends_on = [
+#     helm_release.confluent-operator
+#   ]
+# }
 
-data "kubectl_file_documents" "cp-sr-non-kraft" {
-    content = file("${path.module}/cp-sr-non-kraft.yaml")
-}
+# data "kubectl_file_documents" "cp-sr-non-kraft" {
+#     content = file("${path.module}/cp-sr-non-kraft.yaml")
+# }
 
-resource "kubectl_manifest" "cp-sr-non-kraft" {
-  for_each  = data.kubectl_file_documents.cp-sr-non-kraft.manifests
-  yaml_body = each.value
-  depends_on = [
-    helm_release.confluent-operator
-  ]
-}
+# resource "kubectl_manifest" "cp-sr-non-kraft" {
+#   for_each  = data.kubectl_file_documents.cp-sr-non-kraft.manifests
+#   yaml_body = each.value
+#   depends_on = [
+#     helm_release.confluent-operator
+#   ]
+# }
 
 resource "kubernetes_secret" "rest-credential" {
   provider = kubernetes.kubernetes-raw
@@ -262,6 +297,21 @@ resource "kubernetes_secret" "rest-credential" {
 
   data = {
     "basic.txt" = "${file("./cp-sr-users.txt")}"
+  }
+
+  type = "kubernetes.io/generic"
+}
+
+resource "kubernetes_secret" "restclass-rest-credential" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    name = "rest-credential"
+    namespace = "confluent"
+  }
+
+  data = {
+    "bearer.txt" = "${file("./secrets/cp-creds/bearer.txt")}"
+    "basic.txt" = "${file("./secrets/cp-creds/bearer.txt")}"
   }
 
   type = "kubernetes.io/generic"
@@ -280,6 +330,67 @@ resource "kubernetes_secret" "ca-pair-sslcerts" {
   }
 
   type = "kubernetes.io/tls"
+}
+
+resource "kubernetes_secret" "mds-token" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    name = "mds-token"
+    namespace = "confluent"
+  }
+
+  data = {
+    "mdsPublicKey.pem" = "${file("./secrets/mds-certs/mds-publickey.txt")}"
+    "mdsTokenKeyPair.pem" = "${file("./secrets/mds-certs/mds-tokenkeypair.txt")}"
+  }
+
+  type = "kubernetes.io/generic"
+}
+
+resource "kubernetes_secret" "credential" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    name = "credential"
+    namespace = "confluent"
+  }
+
+  data = {
+    "plain-users.json" = "${file("./secrets/cp-creds/kafka-sasl-users.json")}"
+    "plain.txt" = "${file("./secrets/cp-creds/client-kafka-sasl-user.txt")}"
+    "digest-users.json" = "${file("./secrets/cp-creds/zookeeper-sasl-digest-users.json")}"
+    "digest.txt" = "${file("./secrets/cp-creds/kafka-zookeeper-credentials.txt")}"
+    "ldap.txt" = "${file("./secrets/cp-creds/ldap.txt")}"
+  }
+
+  type = "kubernetes.io/generic"
+}
+
+resource "kubernetes_secret" "sr-mds-client" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    name = "sr-mds-client"
+    namespace = "confluent"
+  }
+
+  data = {
+    "bearer.txt" = "${file("./secrets/sr-mds-client.txt")}"
+  }
+
+  type = "kubernetes.io/generic"
+}
+
+resource "kubernetes_secret" "mds-client" {
+  provider = kubernetes.kubernetes-raw
+  metadata {
+    name = "mds-client"
+    namespace = "confluent"
+  }
+
+  data = {
+    "bearer.txt" = "${file("./secrets/kafka-mds-client.txt")}"
+  }
+
+  type = "kubernetes.io/generic"
 }
 
 
